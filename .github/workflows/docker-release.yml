@@ -21,13 +21,9 @@ jobs:
       tag: ${{ steps.info.outputs.tag }}
       version: ${{ steps.info.outputs.version }}
       sha: ${{ steps.info.outputs.sha }}
-      ghcr: ${{ steps.info.outputs.ghcr }}
-      hub: ${{ steps.info.outputs.hub }}
     env:
       RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
       GH_TOKEN: ${{ github.token }}
-      HUB_USER: ${{ secrets.DOCKERHUB_USERNAME }}
-      HUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -47,20 +43,10 @@ jobs:
           test "$RELEASE_TAG" = "v$version"
           gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" > releases.json
           go run -mod=readonly ./cmd/releaseplan "$RELEASE_TAG" "$version" "$sha" "$(jq -r .prerelease release.json)" releases.json
-          ghcr="ghcr.io/${GITHUB_REPOSITORY,,}"
-          hub=""
-          if [ -n "$HUB_USER" ] && [ -n "$HUB_TOKEN" ]; then
-            hub="${HUB_USER,,}/${GITHUB_REPOSITORY##*/}"
-            hub="${hub,,}"
-          else
-            echo 'Docker Hub credentials absent; publishing GHCR only.' >> "$GITHUB_STEP_SUMMARY"
-          fi
           {
             echo "tag=$RELEASE_TAG"
             echo "version=$version"
             echo "sha=$sha"
-            echo "ghcr=$ghcr"
-            echo "hub=$hub"
           } >> "$GITHUB_OUTPUT"
   build:
     needs: prepare
@@ -76,16 +62,34 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      HUB_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+      HUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ needs.prepare.outputs.tag }}
           persist-credentials: false
       - uses: docker/setup-buildx-action@v4.4.1
+      - name: Image destinations
+        id: destinations
+        shell: bash
+        run: |
+          set -euo pipefail
+          ghcr="ghcr.io/${GITHUB_REPOSITORY,,}"
+          names="$ghcr"
+          if [ -n "$HUB_USER" ] && [ -n "$HUB_TOKEN" ]; then
+            hub="${HUB_USER,,}/${GITHUB_REPOSITORY##*/}"
+            names="$names,${hub,,}"
+          else
+            echo 'Docker Hub credentials absent; publishing GHCR only.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "ghcr=$ghcr" >> "$GITHUB_OUTPUT"
+          echo "names=$names" >> "$GITHUB_OUTPUT"
       - uses: docker/metadata-action@v6.2.0
         id: metadata
         with:
-          images: ${{ needs.prepare.outputs.ghcr }}
+          images: ${{ steps.destinations.outputs.ghcr }}
           tags: type=raw,value=${{ needs.prepare.outputs.version }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
@@ -137,19 +141,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
       - uses: docker/login-action@v4.6.0
-        if: needs.prepare.outputs.hub != ''
+        if: env.HUB_USER != '' && env.HUB_TOKEN != ''
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Image destinations
-        id: destinations
-        env:
-          GHCR: ${{ needs.prepare.outputs.ghcr }}
-          HUB: ${{ needs.prepare.outputs.hub }}
-        run: |
-          names="$GHCR"
-          if [ -n "$HUB" ]; then names="$names,$HUB"; fi
-          echo "names=$names" >> "$GITHUB_OUTPUT"
       - name: Push validated build by digest
         uses: docker/build-push-action@v7.4.0
         id: push
@@ -182,8 +177,8 @@ jobs:
       RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
       VERSION: ${{ needs.prepare.outputs.version }}
       RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
-      GHCR: ${{ needs.prepare.outputs.ghcr }}
-      HUB: ${{ needs.prepare.outputs.hub }}
+      HUB_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+      HUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -204,7 +199,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
       - uses: docker/login-action@v4.6.0
-        if: needs.prepare.outputs.hub != ''
+        if: env.HUB_USER != '' && env.HUB_TOKEN != ''
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -212,12 +207,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          ghcr="ghcr.io/${GITHUB_REPOSITORY,,}"
+          hub=""
+          if [ -n "$HUB_USER" ] && [ -n "$HUB_TOKEN" ]; then
+            hub="${HUB_USER,,}/${GITHUB_REPOSITORY##*/}"
+            hub="${hub,,}"
+          fi
           test -s digests/amd64 && test -s digests/arm64
           gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" > releases.json
           gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > release.json
           test "$(jq -r .draft release.json)" = false
           go run -mod=readonly ./cmd/releaseplan "$RELEASE_TAG" "$VERSION" "$RELEASE_SHA" "$(jq -r .prerelease release.json)" releases.json > tags.txt
-          for repository in "$GHCR" "$HUB"; do
+          for repository in "$ghcr" "$hub"; do
             [ -n "$repository" ] || continue
             amd="$repository@$(cat digests/amd64)"
             arm="$repository@$(cat digests/arm64)"
