@@ -26,9 +26,9 @@ docker run -d --name pageweave --init --shm-size=256m \
   dreamdonghao/pageweave:0.2.0
 ```
 
-如果已执行 `docker pull`，只需运行后面的 `docker run`。镜像名出现两次是因为启动前需要从本地镜像读取 Chromium 安全策略；这不会再次下载镜像。其他 Shell 的启动方法见 [部署文档](docs/DEPLOYMENT.md)。
+如果已执行 `docker pull`，只需运行后面的 `docker run`。镜像名出现两次是因为启动前需要从本地镜像读取 Chromium 安全策略；这不会再次下载镜像。`-p 127.0.0.1:7779:7779` 只允许通过服务器自身的 `127.0.0.1` 访问；从其他设备访问服务器 IP 时，按 [部署文档](docs/DEPLOYMENT.md#从其他设备访问服务器)绑定服务器对应的 IP。其他 Shell 的启动方法也见部署文档。
 
-打开 `http://127.0.0.1:7779/admin/`，在容器启动输出中找到随机 Token 后登录，无需账号和密码：
+在运行 Docker 的机器上打开 `http://127.0.0.1:7779/admin/`，在容器启动输出中找到随机 Token 后登录，无需账号和密码：
 
 ```bash
 docker logs pageweave

@@ -33,9 +33,25 @@ docker run -d --name pageweave --init --shm-size=256m \
 docker logs pageweave
 ```
 
-打开 `http://127.0.0.1:7779/admin/`，输入日志里的 `PageWeave admin token`。配置保存在 Docker 卷 `pageweave-settings` 中。以后启动已有容器运行 `docker start pageweave`；停止运行 `docker stop pageweave`。可用 `docker exec pageweave pageweave healthcheck` 检查服务就绪。
+本节的 `-p 127.0.0.1:7779:7779` 只绑定运行 Docker 的机器的回环地址。在这台机器上打开 `http://127.0.0.1:7779/admin/`，输入日志里的 `PageWeave admin token`。配置保存在 Docker 卷 `pageweave-settings` 中。以后启动已有容器运行 `docker start pageweave`；停止运行 `docker stop pageweave`。可用 `docker exec pageweave pageweave healthcheck` 检查服务就绪。
 
 Docker Hub 镜像为 `dreamdonghao/pageweave`，GHCR 镜像为 `ghcr.io/dreamdonghao/pageweave`。正式部署可固定精确版本或 digest；`latest` 为最新正式版本。
+
+## 从其他设备访问服务器
+
+要通过服务器的内网 IP 访问，把启动命令中的 `-p 127.0.0.1:7779:7779` 改为 `-p <服务器内网IP>:7779:7779`。端口绑定在创建容器时确定，修改它需要重建容器。以下示例假设服务器内网 IP 为 `192.168.1.10`，并保留原有配置卷：
+
+```bash
+docker stop pageweave
+docker rm pageweave
+docker run -d --name pageweave --init --shm-size=256m \
+  --security-opt seccomp=<(docker run --rm --entrypoint cat dreamdonghao/pageweave:0.2.0 /etc/pageweave/chromium-seccomp.json) \
+  -v pageweave-settings:/var/lib/pageweave \
+  -p 192.168.1.10:7779:7779 \
+  dreamdonghao/pageweave:0.2.0
+```
+
+用实际 IP 替换示例地址，然后访问 `http://<服务器内网IP>:7779/admin/`。从服务器本机可先运行 `curl http://<服务器内网IP>:7779/admin/` 验证端口；其他设备仍无法连接时，检查服务器防火墙和云平台安全组是否放行该地址及 7779 端口。内网 IP 只有在对应网络或 VPN 可达时才能从其他设备访问。若需要公网访问，请通过 HTTPS 网关控制管理页面和 `/extract` 接口的访问；`/extract` 本身不要求管理 Token。
 
 ## PowerShell 等 Shell
 
