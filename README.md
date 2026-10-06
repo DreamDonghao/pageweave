@@ -15,14 +15,18 @@ PageWeave 是一个独立的网页内容提取服务。它使用无头 Chromium 
 
 ### Docker
 
-在仓库根目录构建并启动：
+拉取发布镜像并启动，无需 Go 或本地编译。先下载 Chromium 沙箱配置：
 
 ```bash
-docker build -t pageweave:local .
+curl -fsSL https://github.com/DreamDonghao/pageweave/releases/download/v0.1.0/chromium-seccomp.json -o chromium-seccomp.json
+docker pull ghcr.io/dreamdonghao/pageweave:0.1.0
 docker run -d --name pageweave --init --shm-size=256m \
-  --security-opt seccomp=deploy/chromium-seccomp.json \
-  -p 127.0.0.1:7779:7779 pageweave:local
+  --security-opt seccomp=./chromium-seccomp.json \
+  -p 127.0.0.1:7779:7779 \
+  ghcr.io/dreamdonghao/pageweave:0.1.0
 ```
+
+镜像包含服务二进制、Chromium 和系统依赖。自行构建见 [部署文档](docs/DEPLOYMENT.md)。
 
 服务就绪后检查健康状态：
 

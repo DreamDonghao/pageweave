@@ -47,6 +47,6 @@ amd64 和 arm64 在原生 runner 分别构建并运行测试，验证成功后�
 - 版本串或 Release 标记任一为 prerelease 时，不更新稳定别名。
 - 重跑旧版本不会回退 latest 或较新的同系列别名。
 
-发布工作流串行化执行，并在设置别名前重新读取 Release 列表。OCI labels 包含源码仓库、版本、commit 和 AGPL-3.0-only。
+发布工作流串行化执行，并在设置别名前重新读取 Release 列表。OCI labels 包含源码仓库、版本、commit 和 AGPL-3.0-only。镜像发布后，Release 附带 compose.yaml、chromium-seccomp.json 和 .env.example。
 
 构建摘要记录平台、Go 和 Chromium 版本。Go 与基础镜像固定，APT 安全更新仍可能改变浏览器及系统包版本。

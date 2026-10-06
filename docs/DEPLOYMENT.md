@@ -14,6 +14,30 @@ docker run --rm hello-world
 
 默认并发建议预留至少 2 GiB 内存及 256 MiB 共享内存，实际容量取决于网页复杂度。通过监控内存峰值调整资源和并发。
 
+## 使用发布镜像
+
+拉取镜像后直接创建容器，不需要 Go 或源码编译：
+
+```bash
+curl -fsSL https://github.com/DreamDonghao/pageweave/releases/download/v0.1.0/chromium-seccomp.json -o chromium-seccomp.json
+docker pull ghcr.io/dreamdonghao/pageweave:0.1.0
+docker run -d --name pageweave --init --shm-size=256m \
+  --security-opt seccomp=./chromium-seccomp.json \
+  -p 127.0.0.1:7779:7779 \
+  ghcr.io/dreamdonghao/pageweave:0.1.0
+```
+
+GHCR 镜像为 ghcr.io/dreamdonghao/pageweave。正式部署可固定精确版本或 digest；latest 为最新正式版本。
+
+只下载 Compose 部署文件：
+
+```bash
+mkdir -p deploy
+curl -fsSL https://github.com/DreamDonghao/pageweave/releases/download/v0.1.0/compose.yaml -o compose.yaml
+curl -fsSL https://github.com/DreamDonghao/pageweave/releases/download/v0.1.0/chromium-seccomp.json -o deploy/chromium-seccomp.json
+docker compose up -d
+```
+
 ## 从源码构建
 
 在仓库根目录执行：

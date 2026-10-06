@@ -433,11 +433,25 @@ func TestBrowserSandboxStatus(t *testing.T) {
 	if e = waitDOM(ctx, page); e != nil {
 		t.Fatal(e)
 	}
-	obj, e := page.Eval(`() => document.body.innerText`)
-	if e != nil {
-		t.Fatal(e)
+	// The WebUI fills its status table asynchronously after DOMContentLoaded.
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+	var status string
+	for {
+		obj, evalErr := page.Context(ctx).Eval(`() => document.body.innerText`)
+		if evalErr != nil {
+			t.Fatal(evalErr)
+		}
+		status = strings.Join(strings.Fields(obj.Value.Str()), " ")
+		if runtime.GOOS != "linux" || strings.Contains(status, "Seccomp-BPF sandbox") {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("sandbox status table did not load: %s", status)
+		case <-ticker.C:
+		}
 	}
-	status := strings.Join(strings.Fields(obj.Value.Str()), " ")
 	t.Log("sandbox status:", status)
 	if runtime.GOOS == "linux" && (!(strings.Contains(status, "Namespace sandbox Yes") || strings.Contains(status, "Layer 1 Sandbox Namespace")) || !strings.Contains(status, "Seccomp-BPF sandbox Yes")) {
 		t.Fatal("Chromium sandbox not enabled:", status)
