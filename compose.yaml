@@ -1,0 +1,18 @@
+services:
+  pageweave:
+    image: ${PAGEWEAVE_IMAGE:-ghcr.io/dreamdonghao/pageweave:latest}
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 20s
+    shm_size: 256mb
+    security_opt:
+      - seccomp=./deploy/chromium-seccomp.json
+    environment:
+      PAGEWEAVE_MAX_CONCURRENCY: ${PAGEWEAVE_MAX_CONCURRENCY:-2}
+      PAGEWEAVE_REQUEST_TIMEOUT_SECONDS: ${PAGEWEAVE_REQUEST_TIMEOUT_SECONDS:-25}
+      PAGEWEAVE_LOG_LEVEL: ${PAGEWEAVE_LOG_LEVEL:-INFO}
+    networks:
+      - tools
+networks:
+  tools:
+    name: ${PAGEWEAVE_NETWORK:-pageweave-tools}

@@ -1,0 +1,52 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  go:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: '1.27.1'
+          cache: true
+      - name: Dependencies
+        run: go mod download && go mod verify
+      - name: Format and static checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(gofmt -l cmd internal)"
+          go vet ./...
+          go tool staticcheck ./...
+      - name: Tests and native race detector
+        run: |
+          go test -mod=readonly ./...
+          CGO_ENABLED=1 go test -mod=readonly -race ./...
+      - name: Commands and unchanged modules
+        run: |
+          go build -mod=readonly -o build/pageweave ./cmd/pageweave
+          build/pageweave --version
+          git diff --exit-code -- go.mod go.sum
+  browser-container:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Browser integration and container smoke
+        run: |
+          docker build --target browser-test -t pageweave:browser-test .
+          docker run --rm --init --shm-size=256m --security-opt seccomp=deploy/chromium-seccomp.json pageweave:browser-test
+          docker build -t pageweave:local .
+          bash scripts/container-smoke.sh pageweave:local
