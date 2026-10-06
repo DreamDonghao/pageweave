@@ -15,7 +15,7 @@ func TestDefaults(t *testing.T) {
 	}
 }
 func TestInvalid(t *testing.T) {
-	for _, name := range []string{"PORT", "MAX_CONCURRENCY", "REQUEST_TIMEOUT_SECONDS", "MAX_HTML_BYTES", "MAX_OUTPUT_CHARS", "MAX_SCROLL_STEPS", "LOG_LEVEL", "HOST", "BROWSER_PATH"} {
+	for _, name := range []string{"PORT", "MAX_CONCURRENCY", "REQUEST_TIMEOUT_SECONDS", "MAX_HTML_BYTES", "MAX_OUTPUT_CHARS", "MAX_SCROLL_STEPS", "LOG_LEVEL", "HOST", "BROWSER_PATH", "DATA_DIR", "ADMIN_COOKIE_SECURE"} {
 		t.Run(name, func(t *testing.T) {
 			t.Setenv("PAGEWEAVE_"+name, "")
 			if _, e := Load(); e == nil {

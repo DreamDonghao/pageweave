@@ -119,6 +119,7 @@ bash scripts/container-smoke.sh pageweave:local
 | 位置 | 职责 |
 | --- | --- |
 | cmd/pageweave | 启动装配、命令入口和信号处理 |
+| internal/admin | Token 会话、管理页面、配置持久化与重载信号 |
 | internal/config | 环境变量与校验 |
 | internal/server | HTTP 路由、健康与传输超时 |
 | internal/extraction | 请求处理、浏览器生命周期、内容转换 |

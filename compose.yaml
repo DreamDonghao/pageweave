@@ -11,8 +11,13 @@ services:
       PAGEWEAVE_MAX_CONCURRENCY: ${PAGEWEAVE_MAX_CONCURRENCY:-2}
       PAGEWEAVE_REQUEST_TIMEOUT_SECONDS: ${PAGEWEAVE_REQUEST_TIMEOUT_SECONDS:-25}
       PAGEWEAVE_LOG_LEVEL: ${PAGEWEAVE_LOG_LEVEL:-INFO}
+    volumes:
+      - settings:/var/lib/pageweave
     networks:
       - tools
 networks:
   tools:
     name: ${PAGEWEAVE_NETWORK:-pageweave-tools}
+
+volumes:
+  settings:

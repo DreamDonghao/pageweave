@@ -9,6 +9,9 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 go test -mod=readonly -tags=browser -c -o /out/browser.test ./internal/extraction
 
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go test -mod=readonly -tags=browser -c -o /out/admin.test ./internal/admin
+
 FROM debian:12.12-slim@sha256:d5d3f9c23164ea16f31852f95bd5959aad1c5e854332fe00f7b3a20fcc9f635c AS runtime
 ARG APT_MIRROR=http://deb.debian.org
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
@@ -16,10 +19,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,t
     && rm -f /etc/apt/apt.conf.d/docker-clean && apt-get -o Acquire::Retries=3 update \
     && apt-get -o Acquire::Retries=3 install -y --no-install-recommends chromium ca-certificates fonts-noto-cjk \
     && useradd --uid 10001 --create-home --shell /usr/sbin/nologin pageweave \
+    && mkdir -p /var/lib/pageweave && chown 10001:10001 /var/lib/pageweave \
     && chromium --version > /etc/pageweave-chromium-version
 COPY --from=builder /out/pageweave /usr/local/bin/pageweave
+COPY deploy/chromium-seccomp.json /etc/pageweave/chromium-seccomp.json
 LABEL org.opencontainers.image.title="PageWeave" org.opencontainers.image.licenses="AGPL-3.0-only"
-ENV PAGEWEAVE_BROWSER_PATH=/usr/bin/chromium
+ENV PAGEWEAVE_BROWSER_PATH=/usr/bin/chromium PAGEWEAVE_DATA_DIR=/var/lib/pageweave
 USER 10001:10001
 WORKDIR /home/pageweave
 EXPOSE 7779
@@ -31,5 +36,10 @@ COPY --from=builder /out/browser.test /usr/local/bin/browser.test
 COPY internal/extraction/testdata /home/pageweave/testdata
 ENTRYPOINT ["/usr/local/bin/browser.test"]
 CMD ["-test.v", "-test.timeout=180s"]
+
+FROM runtime AS admin-test
+COPY --from=builder /out/admin.test /usr/local/bin/admin.test
+ENTRYPOINT ["/usr/local/bin/admin.test"]
+CMD ["-test.v", "-test.timeout=60s"]
 
 FROM runtime AS final

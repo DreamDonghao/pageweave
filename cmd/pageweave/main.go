@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DreamDonghao/pageweave/internal/admin"
 	"github.com/DreamDonghao/pageweave/internal/buildinfo"
 	"github.com/DreamDonghao/pageweave/internal/config"
 	"github.com/DreamDonghao/pageweave/internal/extraction"
@@ -53,33 +54,67 @@ func run() error {
 		}
 		return fmt.Errorf("unknown command %q", os.Args[1])
 	}
-	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: c.LogLevel}))
-	signalCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-	// Browser lifetime survives the drain period after a signal.
-	browser, e := extraction.NewBrowser(context.Background(), c, network.Policy{}, log)
+
+	c, e = admin.LoadSettings(c)
 	if e != nil {
 		return e
+	}
+	manager, token, e := admin.New(c)
+	if e != nil {
+		return e
+	}
+	// The startup token is deliberately shown once to the local operator, never in HTTP URLs.
+	fmt.Fprintln(os.Stdout, "PageWeave admin token: "+token)
+	signalCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	for {
+		if signalCtx.Err() != nil {
+			return nil
+		}
+		updated, loadErr := admin.LoadSettings(c)
+		if loadErr != nil {
+			return loadErr
+		}
+		c = updated
+		restart, serveErr := serveCycle(signalCtx, c, manager)
+		if serveErr != nil {
+			return serveErr
+		}
+		if !restart {
+			return nil
+		}
+	}
+}
+
+func serveCycle(signalCtx context.Context, c config.Config, manager *admin.Manager) (restart bool, result error) {
+	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: c.LogLevel}))
+	manager.SetRuntime(c, "starting", nil)
+	browser, e := extraction.NewBrowser(context.Background(), c, network.Policy{}, log)
+	if e != nil {
+		return false, e
 	}
 	defer browser.Close()
 	service := extraction.NewService(c, browser, network.Policy{}, log)
-	srv := server.New(c, service, log)
+	srv := server.NewWithAdmin(c, service, log, manager)
 	listen, e := net.Listen("tcp", c.Address())
 	if e != nil {
-		return e
+		return false, e
 	}
 	errs := make(chan error, 1)
 	go func() { errs <- srv.Serve(listen) }()
+	manager.SetRuntime(c, "running", service.Ready)
 	log.Info("server_started", "address", c.Address(), "version", buildinfo.Version())
-	var result error
 	select {
 	case <-signalCtx.Done():
+	case <-manager.ApplyRequested():
+		restart = true
 	case result = <-browser.Fatal():
 	case result = <-errs:
 		if result == http.ErrServerClosed {
 			result = nil
 		}
 	}
+	manager.SetRuntime(c, "restarting", nil)
 	service.StopAccepting()
 	browser.StopAccepting()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -91,6 +126,9 @@ func run() error {
 		_ = srv.Close()
 	}
 	<-drained
-	log.Info("server_stopped")
-	return result
+	log.Info("server_stopped", "reload", restart)
+	if signalCtx.Err() != nil {
+		restart = false
+	}
+	return restart, result
 }

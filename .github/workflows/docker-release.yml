@@ -105,6 +105,17 @@ jobs:
           cache-to: type=gha,mode=max,scope=release-${{ matrix.arch }}
       - name: Real Chromium tests
         run: docker run --rm --init --shm-size=256m --security-opt seccomp=deploy/chromium-seccomp.json pageweave:browser-test
+      - name: Build native administration test image
+        uses: docker/build-push-action@v7.4.0
+        with:
+          context: .
+          target: admin-test
+          platforms: linux/${{ matrix.arch }}
+          load: true
+          tags: pageweave:admin-test
+          build-args: COMMIT=${{ needs.prepare.outputs.sha }}
+      - name: Administration browser tests
+        run: docker run --rm --init --shm-size=256m --security-opt seccomp=deploy/chromium-seccomp.json pageweave:admin-test
       - name: Build native service image
         uses: docker/build-push-action@v7.4.0
         with:

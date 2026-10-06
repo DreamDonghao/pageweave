@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -12,6 +13,8 @@ import (
 
 // Config contains validated process-wide settings.
 type Config struct {
+	DataDir                                                       string
+	AdminCookieSecure                                             bool
 	Host                                                          string
 	Port                                                          int
 	BrowserPath                                                   string
@@ -24,6 +27,25 @@ type Config struct {
 // Load reads PAGEWEAVE_ variables; invalid or explicitly empty values fail startup.
 func Load() (Config, error) {
 	c := Config{Host: "0.0.0.0", Port: 7779, BrowserPath: "/usr/bin/chromium", MaxConcurrency: 2, RequestTimeout: 25 * time.Second, NavigationTimeout: 10 * time.Second, RenderWait: 5 * time.Second, MaxHTMLBytes: 2097152, MaxRequestBytes: 16384, MaxOutputChars: 50000, MaxScrollSteps: 3, LogLevel: slog.LevelInfo}
+	if v, ok := os.LookupEnv("PAGEWEAVE_DATA_DIR"); ok {
+		if v == "" {
+			return c, fmt.Errorf("empty PAGEWEAVE_DATA_DIR")
+		}
+		c.DataDir = v
+	} else {
+		dir, e := os.UserConfigDir()
+		if e != nil {
+			return c, e
+		}
+		c.DataDir = filepath.Join(dir, "pageweave")
+	}
+	if v, ok := os.LookupEnv("PAGEWEAVE_ADMIN_COOKIE_SECURE"); ok {
+		secure, e := strconv.ParseBool(v)
+		if e != nil {
+			return c, fmt.Errorf("invalid PAGEWEAVE_ADMIN_COOKIE_SECURE")
+		}
+		c.AdminCookieSecure = secure
+	}
 	if v, ok := os.LookupEnv("PAGEWEAVE_HOST"); ok {
 		c.Host = v
 	}

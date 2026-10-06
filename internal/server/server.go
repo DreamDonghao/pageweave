@@ -5,12 +5,21 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/DreamDonghao/pageweave/internal/admin"
 	"github.com/DreamDonghao/pageweave/internal/config"
 	"github.com/DreamDonghao/pageweave/internal/extraction"
 )
 
 // New configures routes and transport timeouts without starting the listener.
 func New(c config.Config, s *extraction.Service, log *slog.Logger) *http.Server {
+	return newServer(c, s, log, nil)
+}
+
+// NewWithAdmin adds the administration UI to the extraction service.
+func NewWithAdmin(c config.Config, s *extraction.Service, log *slog.Logger, manager *admin.Manager) *http.Server {
+	return newServer(c, s, log, manager)
+}
+func newServer(c config.Config, s *extraction.Service, log *slog.Logger, manager *admin.Manager) *http.Server {
 	mux := http.NewServeMux()
 	mux.Handle("/extract", extraction.Handler{Service: s, Config: c, Log: log})
 	health := func(ready bool) http.HandlerFunc {
@@ -33,7 +42,14 @@ func New(c config.Config, s *extraction.Service, log *slog.Logger) *http.Server 
 	}
 	mux.HandleFunc("/health/live", health(false))
 	mux.HandleFunc("/health/ready", health(true))
+	if manager != nil {
+		mux.Handle("/admin/", manager)
+	}
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if manager != nil && r.URL.Path == "/" && r.Method == http.MethodGet {
+			http.Redirect(w, r, "/admin/", http.StatusSeeOther)
+			return
+		}
 		extraction.WriteError(w, extraction.RequestID(), &extraction.Error{Status: 404, Code: "not_found", Message: "接口不存在"})
 	})
 	return &http.Server{Addr: c.Address(), Handler: mux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: c.RequestTimeout + 10*time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}

@@ -136,6 +136,8 @@ max_chars 只计算 content 的 Unicode code point。截断不会破坏 UTF-8 �
 | 504 | extraction_timeout | 总预算、导航预算或目标等待耗尽 |
 | 500 | internal_error | 未预期内部错误 |
 
+GET / 返回 303，跳转到管理后台 /admin/。
+
 未知路径返回 404/not_found；错误方法返回 405/method_not_allowed 并附 Allow。无关子资源被阻止不会自动导致整个提取失败。错误不包含上游整页 HTML 或内部路径。
 
 ## 健康检查
@@ -154,3 +156,5 @@ max_chars 只计算 content 的 Unicode code point。截断不会破坏 UTF-8 �
 Worker、SharedWorker、ServiceWorker、WebSocket、iframe/object 网络加载和新窗口被禁用。普通公共 HTTP/HTTPS 脚本、CSS、图片和 fetch 请求仍由出站策略校验。登录、验证码、任意点击、封闭 Shadow DOM、canvas、PDF/OCR 和批量爬虫不在支持范围内。
 
 转换得到的 Markdown 不等于 HTML 安全清洗。将其渲染为 HTML 的应用应采用自己的安全策略。
+
+管理页面及认证配置见 [ADMIN.md](ADMIN.md)。管理接口与提取接口的认证边界独立。

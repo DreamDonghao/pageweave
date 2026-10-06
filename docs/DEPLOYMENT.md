@@ -19,12 +19,12 @@ docker run --rm hello-world
 拉取镜像后直接创建容器，不需要 Go 或源码编译：
 
 ```bash
-curl -fsSL https://github.com/DreamDonghao/pageweave/releases/download/v0.1.0/chromium-seccomp.json -o chromium-seccomp.json
-docker pull ghcr.io/dreamdonghao/pageweave:0.1.0
+curl -fsSL https://github.com/DreamDonghao/pageweave/releases/download/v0.2.0/chromium-seccomp.json -o chromium-seccomp.json
+docker pull ghcr.io/dreamdonghao/pageweave:0.2.0
 docker run -d --name pageweave --init --shm-size=256m \
   --security-opt seccomp=./chromium-seccomp.json \
   -p 127.0.0.1:7779:7779 \
-  ghcr.io/dreamdonghao/pageweave:0.1.0
+  ghcr.io/dreamdonghao/pageweave:0.2.0
 ```
 
 GHCR 镜像为 ghcr.io/dreamdonghao/pageweave。正式部署可固定精确版本或 digest；latest 为最新正式版本。
@@ -33,10 +33,30 @@ GHCR 镜像为 ghcr.io/dreamdonghao/pageweave。正式部署可固定精确版�
 
 ```bash
 mkdir -p deploy
-curl -fsSL https://github.com/DreamDonghao/pageweave/releases/download/v0.1.0/compose.yaml -o compose.yaml
-curl -fsSL https://github.com/DreamDonghao/pageweave/releases/download/v0.1.0/chromium-seccomp.json -o deploy/chromium-seccomp.json
+curl -fsSL https://github.com/DreamDonghao/pageweave/releases/download/v0.2.0/compose.yaml -o compose.yaml
+curl -fsSL https://github.com/DreamDonghao/pageweave/releases/download/v0.2.0/chromium-seccomp.json -o deploy/chromium-seccomp.json
 docker compose up -d
 ```
+
+## 无外部文件的启动方式
+
+Bash 和 Zsh 可将镜像内的安全策略直接交给 Docker：
+
+```bash
+image=ghcr.io/dreamdonghao/pageweave:0.2.0
+docker run -d --name pageweave --init --shm-size=256m \
+  --security-opt seccomp=<(docker run --rm --entrypoint cat "$image" /etc/pageweave/chromium-seccomp.json) \
+  -v pageweave-settings:/var/lib/pageweave \
+  -p 127.0.0.1:7779:7779 "$image"
+```
+
+此命令只需要 Docker 和当前 Shell；读取策略的临时容器会自动删除。PowerShell 等不支持进程替换的环境使用上面的文件方式。镜像不能修改 Docker 启动前的宿主安全设置，不自动关闭 Chromium 沙箱。
+
+## 管理后台与数据卷
+
+打开 `/admin/`，使用启动时生成的随机 Token 登录，查看和修改运行参数。Token 显示在 `docker logs pageweave` 中，容器重启后更新。配置保存与应用说明见 [管理后台](ADMIN.md)。
+
+通过 `-v pageweave-settings:/var/lib/pageweave` 使用 Docker 管理的数据卷，无需创建宿主配置文件。Compose 自动挂载 settings 卷。
 
 ## 从源码构建
 
@@ -93,7 +113,7 @@ networks:
     name: app-network
 ```
 
-容器中的 localhost 指向容器自身。PageWeave 不需要持久化卷，也不需要挂载 Docker socket。
+容器中的 localhost 指向容器自身。提取流程不依赖持久化缓存；管理配置通过 settings 数据卷保存。服务不需要挂载 Docker socket。
 
 ### 本地端口访问
 
@@ -136,6 +156,8 @@ seccomp 文件路径相对于执行命令的目录，也可使用绝对路径。
 | PAGEWEAVE_MAX_OUTPUT_CHARS | 50000 | 正文 Unicode code point 上限 |
 | PAGEWEAVE_MAX_SCROLL_STEPS | 3 | 最大滚动次数 |
 | PAGEWEAVE_LOG_LEVEL | INFO | DEBUG、INFO、WARN 或 ERROR |
+| PAGEWEAVE_DATA_DIR | 容器 /var/lib/pageweave | 管理配置目录 |
+| PAGEWEAVE_ADMIN_COOKIE_SECURE | false | HTTPS 反向代理设置为 true |
 
 配置在启动时校验；空值和非法值会导致启动失败。服务不自动读取 .env；Compose 用 .env 做变量替换。
 

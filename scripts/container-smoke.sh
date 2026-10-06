@@ -9,10 +9,10 @@ port=$(docker port "$cid" 7779/tcp | awk -F: '{print $NF}')
 ready=false
 for attempt in $(seq 1 40); do
   if docker exec "$cid" pageweave healthcheck; then ready=true; break; fi
-  if [ "$(docker inspect -f '{{.State.Running}}' "$cid")" != true ]; then docker logs "$cid"; exit 1; fi
+  if [ "$(docker inspect -f '{{.State.Running}}' "$cid")" != true ]; then docker logs "$cid" | sed -E 's/(PageWeave admin token:).*/\1 [redacted]/'; exit 1; fi
   sleep 0.5
 done
-if [ "$ready" != true ]; then docker logs "$cid"; exit 1; fi
+if [ "$ready" != true ]; then docker logs "$cid" | sed -E 's/(PageWeave admin token:).*/\1 [redacted]/'; exit 1; fi
 test "$(docker exec "$cid" id -u)" = 10001
 docker exec "$cid" chromium --version
 docker exec "$cid" pageweave --version
@@ -25,4 +25,4 @@ test "$(curl -s -o /tmp/pageweave-smoke-response -w '%{http_code}' -H 'Content-T
 # SIGTERM must finish without Docker's SIGKILL fallback.
 docker stop -t 20 "$cid" >/dev/null
 test "$(docker inspect -f '{{.State.ExitCode}}' "$cid")" = 0
-docker logs "$cid"
+docker logs "$cid" | sed -E 's/(PageWeave admin token:).*/\1 [redacted]/'

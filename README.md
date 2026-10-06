@@ -15,18 +15,27 @@ PageWeave 是一个独立的网页内容提取服务。它使用无头 Chromium 
 
 ### Docker
 
-拉取发布镜像并启动，无需 Go 或本地编译。先下载 Chromium 沙箱配置：
+镜像包含服务、Chromium、系统依赖和管理页面，无需安装 Go 或前端工具。Bash/Zsh 下可从镜像读取安全策略直接启动，不需要下载配置文件：
 
 ```bash
-curl -fsSL https://github.com/DreamDonghao/pageweave/releases/download/v0.1.0/chromium-seccomp.json -o chromium-seccomp.json
-docker pull ghcr.io/dreamdonghao/pageweave:0.1.0
+image=ghcr.io/dreamdonghao/pageweave:0.2.0
+docker pull "$image"
 docker run -d --name pageweave --init --shm-size=256m \
-  --security-opt seccomp=./chromium-seccomp.json \
+  --security-opt seccomp=<(docker run --rm --entrypoint cat "$image" /etc/pageweave/chromium-seccomp.json) \
+  -v pageweave-settings:/var/lib/pageweave \
   -p 127.0.0.1:7779:7779 \
-  ghcr.io/dreamdonghao/pageweave:0.1.0
+  "$image"
 ```
 
-镜像包含服务二进制、Chromium 和系统依赖。自行构建见 [部署文档](docs/DEPLOYMENT.md)。
+安全策略由 Docker 在启动前读取。默认 Docker 安全配置可能阻止 Chromium 创建沙箱，因此这项启动参数仍然必要；网页无法替容器设置宿主侧策略。其他 Shell 的文件方式见 [部署文档](docs/DEPLOYMENT.md)。
+
+打开 `http://127.0.0.1:7779/admin/`，在容器启动输出中找到随机 Token 后登录，无需账号和密码：
+
+```bash
+docker logs pageweave
+```
+
+登录后可查看、修改和应用运行配置；配置保存在 Docker 数据卷中，容器重启时 Token 会更新。详见 [管理后台](docs/ADMIN.md)。
 
 服务就绪后检查健康状态：
 
@@ -100,6 +109,7 @@ curl -sS http://127.0.0.1:7779/extract \
 
 ## 文档
 
+- [管理后台](docs/ADMIN.md)
 - [HTTP API](docs/API.md)
 - [开发与测试](docs/DEVELOPMENT.md)
 - [部署与配置](docs/DEPLOYMENT.md)

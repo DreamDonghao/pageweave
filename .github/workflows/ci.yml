@@ -48,5 +48,7 @@ jobs:
         run: |
           docker build --target browser-test -t pageweave:browser-test .
           docker run --rm --init --shm-size=256m --security-opt seccomp=deploy/chromium-seccomp.json pageweave:browser-test
+          docker build --target admin-test -t pageweave:admin-test .
+          docker run --rm --init --shm-size=256m --security-opt seccomp=deploy/chromium-seccomp.json pageweave:admin-test
           docker build -t pageweave:local .
           bash scripts/container-smoke.sh pageweave:local
