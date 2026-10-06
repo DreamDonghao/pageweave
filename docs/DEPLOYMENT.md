@@ -2,55 +2,56 @@
 
 ## 环境要求
 
-Docker 部署需要 Docker Engine 或 Docker Desktop、Buildx 和 Compose 插件。Linux 使用 [Docker Engine 官方安装步骤](https://docs.docker.com/engine/install/)；macOS 和 Windows 使用 [Docker Desktop](https://docs.docker.com/desktop/setup/install/)。Windows 选择 Linux 容器。
+直接使用镜像只需要 Docker Engine 或 Docker Desktop。Linux 使用 [Docker Engine 官方安装步骤](https://docs.docker.com/engine/install/)；macOS 和 Windows 使用 [Docker Desktop](https://docs.docker.com/desktop/setup/install/)。下面的直接启动命令适用于 Zsh 和 Bash；Windows 使用 Linux 容器，PowerShell 启动方式见后文。只有使用 Compose 时才需要 Compose 插件，从源码构建镜像才需要 Buildx。
 
 安装后检查：
 
 ```bash
 docker info
-docker compose version
-docker run --rm hello-world
 ```
 
 默认并发建议预留至少 2 GiB 内存及 256 MiB 共享内存，实际容量取决于网页复杂度。通过监控内存峰值调整资源和并发。
 
 ## 使用发布镜像
 
-拉取镜像后直接创建容器，不需要 Go 或源码编译：
+在 macOS 或 Linux 的 Zsh、Bash 中拉取 Docker Hub 镜像并创建容器。不需要 Go、源码、配置文件或前端工具：
 
 ```bash
-curl -fsSL https://github.com/DreamDonghao/pageweave/releases/download/v0.2.0/chromium-seccomp.json -o chromium-seccomp.json
-docker pull ghcr.io/dreamdonghao/pageweave:0.2.0
+docker pull dreamdonghao/pageweave:0.2.0
 docker run -d --name pageweave --init --shm-size=256m \
-  --security-opt seccomp=./chromium-seccomp.json \
-  -p 127.0.0.1:7779:7779 \
-  ghcr.io/dreamdonghao/pageweave:0.2.0
-```
-
-GHCR 镜像为 ghcr.io/dreamdonghao/pageweave。正式部署可固定精确版本或 digest；latest 为最新正式版本。
-
-只下载 Compose 部署文件：
-
-```bash
-mkdir -p deploy
-curl -fsSL https://github.com/DreamDonghao/pageweave/releases/download/v0.2.0/compose.yaml -o compose.yaml
-curl -fsSL https://github.com/DreamDonghao/pageweave/releases/download/v0.2.0/chromium-seccomp.json -o deploy/chromium-seccomp.json
-docker compose up -d
-```
-
-## 无外部文件的启动方式
-
-Bash 和 Zsh 可将镜像内的安全策略直接交给 Docker：
-
-```bash
-image=ghcr.io/dreamdonghao/pageweave:0.2.0
-docker run -d --name pageweave --init --shm-size=256m \
-  --security-opt seccomp=<(docker run --rm --entrypoint cat "$image" /etc/pageweave/chromium-seccomp.json) \
+  --security-opt seccomp=<(docker run --rm --entrypoint cat dreamdonghao/pageweave:0.2.0 /etc/pageweave/chromium-seccomp.json) \
   -v pageweave-settings:/var/lib/pageweave \
-  -p 127.0.0.1:7779:7779 "$image"
+  -p 127.0.0.1:7779:7779 \
+  dreamdonghao/pageweave:0.2.0
 ```
 
-此命令只需要 Docker 和当前 Shell；读取策略的临时容器会自动删除。PowerShell 等不支持进程替换的环境使用上面的文件方式。镜像不能修改 Docker 启动前的宿主安全设置，不自动关闭 Chromium 沙箱。
+已经拉取过镜像时，直接执行 `docker run` 部分。镜像名出现两次：前一次从本地镜像读取 Chromium 安全策略，后一次启动服务；两次都不会重新下载镜像。读取策略的临时容器会自动删除。策略由 Docker 在服务启动前加载，以便 Chromium 保持沙箱启用。
+
+查看启动 Token 并登录管理页面：
+
+```bash
+docker logs pageweave
+```
+
+打开 `http://127.0.0.1:7779/admin/`，输入日志里的 `PageWeave admin token`。配置保存在 Docker 卷 `pageweave-settings` 中。以后启动已有容器运行 `docker start pageweave`；停止运行 `docker stop pageweave`。可用 `docker exec pageweave pageweave healthcheck` 检查服务就绪。
+
+Docker Hub 镜像为 `dreamdonghao/pageweave`，GHCR 镜像为 `ghcr.io/dreamdonghao/pageweave`。正式部署可固定精确版本或 digest；`latest` 为最新正式版本。
+
+## PowerShell 等 Shell
+
+PowerShell 不支持 `<(...)` 进程替换，可以先下载安全策略文件。以下命令在存放该文件的目录中运行：
+
+```powershell
+Invoke-WebRequest -Uri 'https://github.com/DreamDonghao/pageweave/releases/download/v0.2.0/chromium-seccomp.json' -OutFile 'chromium-seccomp.json'
+docker pull dreamdonghao/pageweave:0.2.0
+docker run -d --name pageweave --init --shm-size=256m `
+  --security-opt seccomp=./chromium-seccomp.json `
+  -v pageweave-settings:/var/lib/pageweave `
+  -p 127.0.0.1:7779:7779 `
+  dreamdonghao/pageweave:0.2.0
+```
+
+其他不支持进程替换的 Shell 也可使用此文件方式，并按其语法调整命令。镜像不能修改 Docker 启动前的宿主安全设置。
 
 ## 管理后台与数据卷
 
@@ -87,7 +88,7 @@ docker compose exec pageweave pageweave healthcheck
 docker compose logs -f pageweave
 ```
 
-使用 GHCR 镜像时：
+仓库的 `compose.yaml` 默认使用 GHCR 镜像；运行 Compose 还需要仓库内的 `deploy/chromium-seccomp.json`：
 
 ```bash
 docker compose pull
@@ -128,12 +129,13 @@ services:
 
 ## docker run
 
-以下命令使用本地镜像并开放回环端口：
+从源码构建本地镜像后，也可使用仓库内的 seccomp 文件开放回环端口：
 
 ```bash
 docker run -d --name pageweave --init \
   --restart unless-stopped --stop-timeout 20 --shm-size=256m \
   --security-opt seccomp=deploy/chromium-seccomp.json \
+  -v pageweave-settings:/var/lib/pageweave \
   -p 127.0.0.1:7779:7779 \
   pageweave:local
 ```
@@ -186,6 +188,8 @@ Chromium 沙箱保持启用，CDP 绑定容器回环地址，不映射管理端�
 
 ## 更新与回滚
 
+更新直接启动的容器时，先拉取新版本，再停止并移除旧容器，最后用本文开头的 `docker run` 命令重新创建；将命令中两处镜像版本都改为新版本。保留 `pageweave-settings` 数据卷即可保留后台配置。`docker restart pageweave` 只会重启旧容器，不会切换镜像。
+
 以精确版本更新 Compose 服务：
 
 ```bash
@@ -193,9 +197,7 @@ PAGEWEAVE_IMAGE=ghcr.io/dreamdonghao/pageweave:<版本> docker compose pull
 PAGEWEAVE_IMAGE=ghcr.io/dreamdonghao/pageweave:<版本> docker compose up -d
 ```
 
-回滚时指定旧精确版本并执行相同命令。正式环境可固定镜像 digest。
-
-本地重建镜像后，Compose 会在 up 时重新创建服务。docker run 创建的容器需要停止并移除，再按启动命令重新创建；docker restart 不切换镜像。
+回滚时指定旧精确版本并执行相同命令。直接启动的容器也需拉取旧版本并重新创建。正式环境可固定镜像 digest；本地重建镜像后，Compose 会在 up 时重新创建服务。
 
 ## 排错
 

@@ -15,19 +15,18 @@ PageWeave 是一个独立的网页内容提取服务。它使用无头 Chromium 
 
 ### Docker
 
-镜像包含服务、Chromium、系统依赖和管理页面，无需安装 Go 或前端工具。Bash/Zsh 下可从镜像读取安全策略直接启动，不需要下载配置文件：
+镜像包含服务、Chromium、系统依赖和管理页面。在 macOS 或 Linux 的 Zsh、Bash 下，只需 Docker 即可拉取镜像并启动，无需下载配置文件：
 
 ```bash
-image=ghcr.io/dreamdonghao/pageweave:0.2.0
-docker pull "$image"
+docker pull dreamdonghao/pageweave:0.2.0
 docker run -d --name pageweave --init --shm-size=256m \
-  --security-opt seccomp=<(docker run --rm --entrypoint cat "$image" /etc/pageweave/chromium-seccomp.json) \
+  --security-opt seccomp=<(docker run --rm --entrypoint cat dreamdonghao/pageweave:0.2.0 /etc/pageweave/chromium-seccomp.json) \
   -v pageweave-settings:/var/lib/pageweave \
   -p 127.0.0.1:7779:7779 \
-  "$image"
+  dreamdonghao/pageweave:0.2.0
 ```
 
-安全策略由 Docker 在启动前读取。默认 Docker 安全配置可能阻止 Chromium 创建沙箱，因此这项启动参数仍然必要；网页无法替容器设置宿主侧策略。其他 Shell 的文件方式见 [部署文档](docs/DEPLOYMENT.md)。
+如果已执行 `docker pull`，只需运行后面的 `docker run`。镜像名出现两次是因为启动前需要从本地镜像读取 Chromium 安全策略；这不会再次下载镜像。其他 Shell 的启动方法见 [部署文档](docs/DEPLOYMENT.md)。
 
 打开 `http://127.0.0.1:7779/admin/`，在容器启动输出中找到随机 Token 后登录，无需账号和密码：
 
@@ -50,7 +49,7 @@ docker exec pageweave pageweave healthcheck
 | GHCR | ghcr.io/dreamdonghao/pageweave |
 | Docker Hub | dreamdonghao/pageweave |
 
-镜像发布目标为 `linux/amd64` 和 `linux/arm64`。Docker Hub 发布由仓库 Secrets 启用。Compose、网络、更新和回滚说明见 [部署文档](docs/DEPLOYMENT.md)。
+镜像发布目标为 `linux/amd64` 和 `linux/arm64`。Compose、网络、更新和回滚说明见 [部署文档](docs/DEPLOYMENT.md)。
 
 ### 本地运行
 
